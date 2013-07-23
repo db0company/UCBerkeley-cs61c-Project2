@@ -1,0 +1,2 @@
+cs61c-at, Donny Reynolds
+cs61c-gm, Barbara Lepage
