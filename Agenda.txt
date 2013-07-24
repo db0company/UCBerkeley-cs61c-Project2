@@ -1,0 +1,30 @@
+Part I ideas:
+
+Our part for this one is basically one big function with possibly some helper functions. With the help of Intel intrinsics, we should use four major techniques introduced in lecture: register blocking, cache blocking, loop unrolling and parallelization.
+
+Part I doesn't allow parallelization so we can only use other methods. Here's my pseudocode:
+
+func(){
+
+	
+	receive two matrices, check sizes
+
+	==General Case==
+
+	procedure: pad each matrix's dimension to a multiple of 4, to enable register blocking (__mm_128i allows 4 single precision floating points){
+		if the length is less than ideal, pad by stretching the array
+		if the width is less than ideal, pad by extending the array
+	}
+
+	loop: break the for-loop into blocks appropriate for cache blocking{
+		break each loop into block of 4x4 for register blocking{
+			use Intel intrinsics to achieve data-level parallelism
+			use local __mm_128i to store partial sum, increment to C after loop
+		}
+		use local __mm_128i to store partial sum, increment to C after loop
+	}
+
+	==36x36 Special Case==
+
+	hard-code 36x36 special case to achieve maximum optimization
+}
