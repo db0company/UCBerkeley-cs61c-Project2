@@ -4,7 +4,6 @@
 #include <stdio.h>
 
 #define SPECIAL 36
-#define REG_BLOCKSIZE sizeof(__m128i) / sizeof(float) // should be 4
 
 #define A_height  m_a
 #define A_width n_a
@@ -20,6 +19,8 @@
 /* ************************************************************************* */
 
 #define total(width, height) (width * height)
+
+static int REG_BLOCKSIZE = sizeof(__m128) / sizeof(float);
 
 void error(char * msg) {
   fprintf(stderr, "[Error] %s\n", msg);
