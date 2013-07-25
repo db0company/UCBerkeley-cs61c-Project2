@@ -58,7 +58,12 @@ void store(__m128i data, float * m, int position) {
 /* Add padding to the matrix so that both dimentions are the nearest
  * multiples of four to enable register blocking.
  * __mm_128i allows 4 single precision floating points */
-void padMatrix(int *m_a, int *n_a, float *A, float *B, float *C){
+
+/* Change Log
+  1. change to have padMatrix do all jobs at once for performance,
+    decrease function call overhead
+*/
+void padMatrix(int *m_a, int *n_a, float **A, float **B, float **C){
 
   if (!(*m_a % REG_BLOCKSIZE) && !(*n_a % REG_BLOCKSIZE)) return;
 
@@ -72,7 +77,7 @@ void padMatrix(int *m_a, int *n_a, float *A, float *B, float *C){
   for (int n = 0; n < n_a; ++n){
     for (int m = 0; m < m_a; ++m){
       //need optimization
-      A_padded[m+n*padded_m] = A[m+n*m_a];
+      A_padded[m+n*padded_m] = (*A)[m+n*m_a];
     }
   }
 
@@ -81,10 +86,17 @@ void padMatrix(int *m_a, int *n_a, float *A, float *B, float *C){
   for (int m = 0; m < m_a; ++m){
     for (int n = 0; n < n_a; ++n){
       //need optimization
-      B_padded[n+m*padded_n] = B[n+m*n_a];
+      B_padded[n+m*padded_n] = (*B)[n+m*n_a];
     }
   }
 
+  //reflect changes
+  free(*A); free(*B);
+  *A = A_padded;
+  *B = B_padded;
+  *C = (float*)realloc(C, total(padded_m, padded_m)*sizeof(float));
+  *m_a = padded_m;
+  *n_a = padded_n;
 }
 
 /* ************************************************************************* */
@@ -94,9 +106,9 @@ void padMatrix(int *m_a, int *n_a, float *A, float *B, float *C){
 /* Deals with general case where C = A x B, A is MxN and B is NxM */
 void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
   __m128i r;
-  padMatrix(total(A_height, A_width), &A);
-  padMatrix(total(B_height, B_width), &B);
-  padMatrix(total(C_width, C_height), &C);
+
+  padMatrix(int *m_a, int *n_a, float *A, float *B, float *C);
+  
   for (int i = 0; i < total(C_width, C_height); i += REG_BLOCKSIZE) {
     // todo: algorithm
     //r = _mm_add_pd(load(C, i), _mm_mul_pd(load(A, i), load(B, i)));
