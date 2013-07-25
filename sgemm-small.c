@@ -4,16 +4,16 @@
 #include <stdio.h>
 
 #define SPECIAL 36
-#define BLOCKSIZE sizeof(__m128i) / sizeof(float) // should be 4
+#define REG_BLOCKSIZE sizeof(__m128i) / sizeof(float) // should be 4
 
-#define A_width  m_a
-#define A_height n_a
+#define A_height  m_a
+#define A_width n_a
 
-#define B_width  n_a
-#define B_height m_a
+#define B_height  n_a
+#define B_width m_a
 
-#define C_width  m_a
 #define C_height m_a
+#define C_width  m_a
 
 /* ************************************************************************* */
 /* Tools                                                                     */
@@ -44,15 +44,47 @@ void store(__m128i data, float * m, int position) {
   //_mm_storeu_pd(m + position, data);
 }
 
+// /* Add padding to the matrix so that both dimentions are the nearest
+//  * multiples of four to enable register blocking.
+//  * __mm_128i allows 4 single precision floating points */
+// void padMatrix(int size, float ** m) {
+//   if (size % REG_BLOCKSIZE) {
+//     if (*m = realloc(*m, (size + (size % REG_BLOCKSIZE)) * sizeof(float)))
+//       errorAllocation();
+//     bzero(m + size, (size % REG_BLOCKSIZE) * sizeof(float)); /* fill with 0 */
+//   }
+// }
+
 /* Add padding to the matrix so that both dimentions are the nearest
  * multiples of four to enable register blocking.
  * __mm_128i allows 4 single precision floating points */
-void padMatrix(int size, float ** m) {
-  if (size % BLOCKSIZE) {
-    if (*m = realloc(*m, (size + (size % BLOCKSIZE)) * sizeof(float)))
-      errorAllocation();
-    bzero(m + size, (size % BLOCKSIZE) * sizeof(float)); /* fill with 0 */
+void padMatrix(int *m_a, int *n_a, float *A, float *B, float *C){
+
+  if (!(*m_a % REG_BLOCKSIZE) && !(*n_a % REG_BLOCKSIZE)) return;
+
+  int padded_m = ((*m_a -1) / REG_BLOCKSIZE +1) * REG_BLOCKSIZE;
+  int padded_n = ((*n_a -1) / REG_BLOCKSIZE +1) * REG_BLOCKSIZE;
+
+  //Pad Matrix A, column major
+  float *A_padded = (float*)calloc(total(padded_m, padded_n), sizeof(float));
+  if (!A_padded) errorAllocation();
+
+  for (int n = 0; n < n_a; ++n){
+    for (int m = 0; m < m_a; ++m){
+      //need optimization
+      A_padded[m+n*padded_m] = A[m+n*m_a];
+    }
   }
+
+  //Pad Matrix B, row major
+  float *B_padded = (float*)calloc(total(padded_m, padded_n), sizeof(float));
+  for (int m = 0; m < m_a; ++m){
+    for (int n = 0; n < n_a; ++n){
+      //need optimization
+      B_padded[n+m*padded_n] = B[n+m*n_a];
+    }
+  }
+
 }
 
 /* ************************************************************************* */
@@ -62,10 +94,10 @@ void padMatrix(int size, float ** m) {
 /* Deals with general case where C = A x B, A is MxN and B is NxM */
 void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
   __m128i r;
-  padMatrix(total(A_width, A_height), &A);
-  padMatrix(total(B_width, B_height), &B);
+  padMatrix(total(A_height, A_width), &A);
+  padMatrix(total(B_height, B_width), &B);
   padMatrix(total(C_width, C_height), &C);
-  for (int i = 0; i < total(C_width, C_height); i += BLOCKSIZE) {
+  for (int i = 0; i < total(C_width, C_height); i += REG_BLOCKSIZE) {
     // todo: algorithm
     //r = _mm_add_pd(load(C, i), _mm_mul_pd(load(A, i), load(B, i)));
     //store(r, C, i);
