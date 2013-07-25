@@ -7,74 +7,55 @@
 #include <sys/time.h>
 #include <cblas.h>
 
-/* Your function must have the following signature: */
-
 void sgemm( int m, int n, float *A, float *B, float *C );
 
+void printMatrix(float * m, int width, int height) {
+  printf("  ### Print Matrix of size %dx%d\n    ", width, height);
+  for (int i = 0; i < width * height; ++i) {
+    printf("%.05f ", m[i]);
+    if (!((i + 1) % width))
+      printf("\n    ");
+  }
+  printf("\n");
+}
+
+float * newMatrix(int width, int height) {
+  float * m = (float *)malloc(width * height * sizeof(float));
+  for (int i = 0; i < width * height; i++)
+    m[i] = 2 * drand48() - 1;
+  return m;
+}
+
 void run_test(int width, int height) {
-  for( int n = width; n <= width; n = n+1+n/3 )
-    {
-      /* Try different m */
-      for( int m = height; m <= height; m = m+1+m/3 )
-	{
-	  /* Allocate and fill 2 random matrices A, C */
-	  float *A = (float*) malloc( m * n * sizeof(float) );
-	  float *B = (float*) malloc( n * m * sizeof(float) );
-	  float *C = (float*) malloc( m * m * sizeof(float) );
+  int m = width, n = height;
+
+  float *A = newMatrix(m, n);
+  float *B = newMatrix(n, m);
+  float *C = newMatrix(m, m);
 	    
-	  for( int i = 0; i < m*n; i++ ) A[i] = 2 * drand48() - 1;
-	  for( int i = 0; i < n*m; i++ ) B[i] = 2 * drand48() - 1;
-	  for( int i = 0; i < m*m; i++ ) C[i] = 2 * drand48() - 1;
-	    
-	  /* measure Gflop/s rate; time a sufficiently long sequence of calls to eliminate noise */
-	  double Gflop_s, seconds = -1.0;
-	  for( int n_iterations = 1; seconds < 0.1; n_iterations *= 2 ) 
-	    {
-	      /* warm-up */
-	      sgemm( m, n, A, B, C );
-		
-	      /* measure time */
-	      struct timeval start, end;
-	      gettimeofday( &start, NULL );
-	      for( int i = 0; i < n_iterations; i++ )
-		sgemm( m,n, A, B, C );
-	      gettimeofday( &end, NULL );
-	      seconds = (end.tv_sec - start.tv_sec) + 1.0e-6 * (end.tv_usec - start.tv_usec);
-      
-	      /* compute Gflop/s rate */
-	      Gflop_s = 2e-9 * n_iterations * m * m * n / seconds;
-	    }
-    
-	  printf( "%d by %d matrix \t %g Gflop/s\n", m, n, Gflop_s );
-    
-	  /* Ensure that error does not exceed the theoretical error bound */
-		
-	  /* Set initial C to 0 and do matrix multiply of A*B */
-	  memset( C, 0, sizeof( float ) * m * m );
-	  sgemm( m,n, A, B, C );
+  double seconds;
+  struct timeval start, end;
 
-	  /* Subtract A*B from C using standard sgemm (note that this should be 0 to within machine roundoff) */
-	  cblas_sgemm( CblasColMajor,CblasNoTrans,CblasTrans, m,m,n, -1, A,m, B,m, 1, C,m );
+  printf("## Matrice A\n");
+  printMatrix(A, m, n);
+  printf("## Matrice B\n");
+  printMatrix(B, n, m);
 
-	  /* Subtract the maximum allowed roundoff from each element of C */
-	  for( int i = 0; i < m*n; i++ ) A[i] = fabs( A[i] );
-	  for( int i = 0; i < m*n; i++ ) B[i] = fabs( B[i] );
-	  for( int i = 0; i < m*m; i++ ) C[i] = fabs( C[i] );
-	  cblas_sgemm( CblasColMajor,CblasNoTrans,CblasTrans, m,m,n, -3.0*FLT_EPSILON*n, A,m, B,m, 1, C,m );
+  gettimeofday( &start, NULL );
 
-	  /* After this test if any element in C is still positive something went wrong in square_sgemm */
-	  for( int i = 0; i < m * m; i++ )
-	    if( C[i] > 0 ) {
-	      printf( "FAILURE: error in matrix multiply exceeds an acceptable margin\n" );
-	      exit(EXIT_FAILURE);
-	    }
+  sgemm(m, n, A, B, C);
 
-	  /* release memory */
-	  free( C );
-	  free( B );
-	  free( A );
-	}
-    }  
+  gettimeofday( &end, NULL );
+
+  printf("## Matrice C (after sgemm)\n");
+  printMatrix(C, m, m);
+
+  seconds = end.tv_usec - start.tv_usec;
+  printf( "%d by %d matrix took %f microseconds\n", width, height, seconds);
+
+  free( C );
+  free( B );
+  free( A );
 }
 
 /* Search a character in a string.
