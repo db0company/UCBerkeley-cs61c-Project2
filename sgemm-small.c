@@ -74,19 +74,19 @@ void padMatrix(int *m_a, int *n_a, float **A, float **B, float **C){
   float *A_padded = (float*)calloc(total(padded_m, padded_n), sizeof(float));
   if (!A_padded) errorAllocation();
 
-  for (int n = 0; n < n_a; ++n){
-    for (int m = 0; m < m_a; ++m){
+  for (int n = 0; n < *n_a; ++n){
+    for (int m = 0; m < *m_a; ++m){
       //need optimization
-      A_padded[m+n*padded_m] = (*A)[m+n*m_a];
+      A_padded[m+n*padded_m] = (*A)[m+n*(*m_a)];
     }
   }
 
   //Pad Matrix B, row major
   float *B_padded = (float*)calloc(total(padded_m, padded_n), sizeof(float));
-  for (int m = 0; m < m_a; ++m){
-    for (int n = 0; n < n_a; ++n){
+  for (int m = 0; m < *m_a; ++m){
+    for (int n = 0; n < *n_a; ++n){
       //need optimization
-      B_padded[n+m*padded_n] = (*B)[n+m*n_a];
+      B_padded[n+m*padded_n] = (*B)[n+m*(*n_a)];
     }
   }
 
@@ -129,23 +129,23 @@ void padMatrix(int *m_a, int *n_a, float **A, float **B, float **C){
 void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
   __m128i r;
 
-  padMatrix(int *m_a, int *n_a, float *A, float *B, float *C);
+  padMatrix(&m_a, &n_a, &A, &B, &C);
 
   for (int leap_n = 0; leap_n < n_a; leap_n+=REG_BLOCKSIZE){
     for (int leap_m = 0; leap_m < m_a; leap_m+=REG_BLOCKSIZE){
                                                                                                                                                                                  
 
       //Register Blocking, loop unrolling
-      __m128i c1 = _mm_setzero_si128();
-      __m128i c2 = _mm_setzero_si128();
-      __m128i c3 = _mm_setzero_si128();
-      __m128i c4 = _mm_setzero_si128();
+      __m128 c1 = _mm_setzero_ps();
+      __m128 c2 = _mm_setzero_ps();
+      __m128 c3 = _mm_setzero_ps();
+      __m128 c4 = _mm_setzero_ps();
 
       //Gets the columns a1, a2, a3, a4
-      __m128i a1 = _mm_loadu_ps(A + leap_m + m_a*(leap_n+0));
-      __m128i a2 = _mm_loadu_ps(A + leap_m + m_a*(leap_n+1));
-      __m128i a3 = _mm_loadu_ps(A + leap_m + m_a*(leap_n+2));
-      __m128i a4 = _mm_loadu_ps(A + leap_m + m_a*(leap_n+3));
+      __m128 a1 = _mm_loadu_ps(A + leap_m + m_a*(leap_n+0));
+      __m128 a2 = _mm_loadu_ps(A + leap_m + m_a*(leap_n+1));
+      __m128 a3 = _mm_loadu_ps(A + leap_m + m_a*(leap_n+2));
+      __m128 a4 = _mm_loadu_ps(A + leap_m + m_a*(leap_n+3));
 
       //Gets the rows b1, b2, b3, b4
 /*    
