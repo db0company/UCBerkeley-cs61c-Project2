@@ -235,10 +235,10 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
       c4 = _mm_add_ps(c4, 
         _mm_mul_ps(a4, _mm_load1_ps(B + leap_m+3 + m_a*(leap_n+3))));
 
-      _mm_storeu_ps(A + leap_m + m_a*(leap_n+0), c1);
-      _mm_storeu_ps(A + leap_m + m_a*(leap_n+1), c1);
-      _mm_storeu_ps(A + leap_m + m_a*(leap_n+2), c1);
-      _mm_storeu_ps(A + leap_m + m_a*(leap_n+3), c1);
+      _mm_storeu_ps(C + leap_m + m_a*(leap_n+0), c1);
+      _mm_storeu_ps(C + leap_m + m_a*(leap_n+1), c1);
+      _mm_storeu_ps(C + leap_m + m_a*(leap_n+2), c1);
+      _mm_storeu_ps(C + leap_m + m_a*(leap_n+3), c1);
 
     } //end inner for
   } //end outer for
