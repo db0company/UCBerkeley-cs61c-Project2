@@ -122,16 +122,10 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
     }
 
     float *C_padded = (float*)calloc(total(padded_m, padded_m), sizeof(float));
+    
     // C = (float*)realloc(C, total(padded_m, padded_m)*sizeof(float));
     if (!C_padded) errorAllocation();
-    //This padding is unncessary since C starts out being zero anyways
-    // for (int n = 0; n < m_a; ++n){
-    //   for (int m = 0; m < m_a; ++m){
-    //     //need optimization
-    //     C_padded[m+n*padded_m] = (C)[m+n*(m_a)];
-    //   }
-    // }
-    
+
     //reflect changes
     A = A_padded;
     B = B_padded;
