@@ -1,19 +1,9 @@
-
 #include <nmmintrin.h>
-#include <strings.h>
+#include <string.h>
 #include <stdio.h>
 #include <stdbool.h>
 
 #define SPECIAL 36
-
-#define A_height  m_a
-#define A_width n_a
-
-#define B_height  n_a
-#define B_width m_a
-
-#define C_height m_a
-#define C_width  m_a
 
 /* ************************************************************************* */
 /* Tools                                                                     */
@@ -30,11 +20,6 @@ void error(char * msg) {
 void errorAllocation(void) {
   error("Allocation failure");
 }
-
-/* ************************************************************************* */
-/* Matrix Modifications                                                      */
-/* ************************************************************************* */
-
 void printIntel(__m128 var){
   printf("{%f, %f, %f, %f}\n", 
     *((float*)(&var)+0),
@@ -87,26 +72,10 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
     float *B_padded = (float*)calloc(total(padded_m, padded_n), sizeof(float));
     if (!B_padded) errorAllocation();
 
-    for (int n = 0; n < (n_a); n+=1){
-      int m;
-      for (m = 0; m < (m_a)/4*4; m+=4){
-        A_padded[m+0+n*padded_m] = (A)[m+0+n*(m_a)];
-        A_padded[m+1+n*padded_m] = (A)[m+1+n*(m_a)];
-        A_padded[m+2+n*padded_m] = (A)[m+2+n*(m_a)];
-        A_padded[m+3+n*padded_m] = (A)[m+3+n*(m_a)];
-
-        B_padded[m+0+n*padded_m] = (B)[m+0+n*(m_a)];
-        B_padded[m+1+n*padded_m] = (B)[m+1+n*(m_a)];
-        B_padded[m+2+n*padded_m] = (B)[m+2+n*(m_a)];
-        B_padded[m+3+n*padded_m] = (B)[m+3+n*(m_a)];
-        B_padded[m+4+n*padded_m] = (B)[m+4+n*(m_a)];
-
-      }
-      //fringe clean-up
-      for (; m<m_a; m++){
-        A_padded[m+n*padded_m] = (A)[m+n*(m_a)];
-        B_padded[m+n*padded_m] = (B)[m+n*(m_a)];
-      }
+    //Transfer data over
+    for (int n = 0; n < n_a; ++n){
+      memcpy(A_padded+n*padded_m, A+n*old_m, old_m*sizeof(float));
+      memcpy(B_padded+n*padded_m, B+n*old_m, old_m*sizeof(float));
     }
 
     float *C_padded = (float*)calloc(total(padded_m, padded_m), sizeof(float));
@@ -218,13 +187,9 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
   //   }
   // }
   
-  // unPadMatrix(old_m, m_a, C, original_C);
   if (padded){
     for (int n = 0; n < old_m; ++n){
-      for (int m = 0; m < old_m; ++m){
-        //need optimization
-        original_C[m+n*old_m] = C[m+n*m_a];
-      }
+      memcpy(original_C+n*old_m, C+n*m_a, old_m*sizeof(float));
     }
   }
 }
