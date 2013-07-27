@@ -200,6 +200,12 @@ void sgemmSpecial(float * A, float * B, float * C) {
   //Implementation currently at 11Gflop/s
   int m_a = 36;
   int n_a = 36;
+
+  __m128 c1;
+  __m128 c2;
+  __m128 c3;
+  __m128 c4;
+  
   for (int i = 0; i < m_a; i+=4){
     for (int j = 0; j < m_a; j+=4){
       
@@ -209,10 +215,10 @@ void sgemmSpecial(float * A, float * B, float * C) {
       float* c4_addr = C + i + m_a*(j+3);
 
       //Obtain placeholders for sums of column c1, c2, c3, c4
-      __m128 c1 = _mm_setzero_ps();
-      __m128 c2 = _mm_setzero_ps();
-      __m128 c3 = _mm_setzero_ps();
-      __m128 c4 = _mm_setzero_ps();
+      c1 = _mm_setzero_ps();
+      c2 = _mm_setzero_ps();
+      c3 = _mm_setzero_ps();
+      c4 = _mm_setzero_ps();
 
       for (int k = 0; k < n_a; k+=4){
 
