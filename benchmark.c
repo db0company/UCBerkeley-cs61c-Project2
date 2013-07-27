@@ -17,10 +17,10 @@ int main( int argc, char **argv )
 {
   srand(time(NULL));
 
-	for( int n = 36; n < 32101; n = n+1+n/3 )
+	for( int n = 49; n < 200; n = n+1+n/3 )
 	{
   /* Try different m */
-  for( int m = 36; m < 32301; m = m+1+m/3 )
+  for( int m = 36; m < 200; m = m+1+m/3 )
   {
     /* Allocate and fill 2 random matrices A, C */
     float *A = (float*) malloc( m * n * sizeof(float) );
@@ -56,7 +56,29 @@ int main( int argc, char **argv )
 		
     /* Set initial C to 0 and do matrix multiply of A*B */
     memset( C, 0, sizeof( float ) * m * m );
+
+    if(0){
+    for (int x = 0; x<m; x++){
+      printf("|");
+      for (int y = 0; y<m; y++){
+        printf("%.2f|", C[y*m+x]);
+      }
+      printf("\n");
+    }
+    }
+
     sgemm( m,n, A, B, C );
+
+    /* Print out the matrix after computation */
+    if(0){
+    for (int x = 0; x<m; x++){
+      printf("|");
+      for (int y = 0; y<m; y++){
+        printf("%.2f|", C[y*m+x]);
+      }
+      printf("\n");
+    }
+    }
 
     /* Subtract A*B from C using standard sgemm (note that this should be 0 to within machine roundoff) */
     cblas_sgemm( CblasColMajor,CblasNoTrans,CblasTrans, m,m,n, -1, A,m, B,m, 1, C,m );

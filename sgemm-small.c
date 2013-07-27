@@ -2,6 +2,7 @@
 #include <nmmintrin.h>
 #include <strings.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #define SPECIAL 36
 
@@ -35,74 +36,6 @@ void errorAllocation(void) {
 /* Matrix Modifications                                                      */
 /* ************************************************************************* */
 
-
-/* Add padding to the matrix so that both dimentions are the nearest
- * multiples of four to enable register blocking.
- * __mm_128i allows 4 single precision floating points */
-// void padMatrix(int *m_a, int *n_a, float **A, float **B, float **C){
-
-//   if (!(*m_a % REG_BLOCKSIZE) && !(*n_a % REG_BLOCKSIZE)) return;
-
-//   int padded_m = ((*m_a -1) / REG_BLOCKSIZE +1) * REG_BLOCKSIZE;
-//   int padded_n = ((*n_a -1) / REG_BLOCKSIZE +1) * REG_BLOCKSIZE;
-
-//   //Pad Matrix A, column major
-//   //Pad Matrix B, row major
-//   float *A_padded = (float*)calloc(total(padded_m, padded_n), sizeof(float));
-//   if (!A_padded) errorAllocation();
-//   float *B_padded = (float*)calloc(total(padded_m, padded_n), sizeof(float));
-//   if (!B_padded) errorAllocation();
-
-//   for (int n = 0; n < (*n_a); n+=1){
-//     int m;
-//     for (m = 0; m < (*m_a)/4*4; m+=4){
-//       //need optimization
-//       A_padded[m+0+n*padded_m] = (*A)[m+0+n*(*m_a)];
-//       A_padded[m+1+n*padded_m] = (*A)[m+1+n*(*m_a)];
-//       A_padded[m+2+n*padded_m] = (*A)[m+2+n*(*m_a)];
-//       A_padded[m+3+n*padded_m] = (*A)[m+3+n*(*m_a)];
-//       // _mm_storeu_ps(A_padded[m+n*padded_m], _mm_loadu_ps((*A)[m+n*(*m_a)]));
-//       B_padded[m+0+n*padded_m] = (*B)[m+0+n*(*m_a)];
-//       B_padded[m+1+n*padded_m] = (*B)[m+1+n*(*m_a)];
-//       B_padded[m+2+n*padded_m] = (*B)[m+2+n*(*m_a)];
-//       B_padded[m+3+n*padded_m] = (*B)[m+3+n*(*m_a)];
-//       // _mm_storeu_ps(B_padded[m+n*padded_m], _mm_loadu_ps((*B)[m+n*(*m_a)]));
-//     }
-//     for (; m<*m_a; m++){
-//       A_padded[m+n*padded_m] = (*A)[m+n*(*m_a)];
-//       B_padded[m+n*padded_m] = (*B)[m+n*(*m_a)];
-//     }
-//   }
-
-//   float *C_padded = (float*)calloc(total(padded_m, padded_m), sizeof(float));
-//   if (!C_padded) errorAllocation();
-//   for (int n = 0; n < *m_a; ++n){
-//     for (int m = 0; m < *m_a; ++m){
-//       //need optimization
-//       C_padded[m+n*padded_m] = (*C)[m+n*(*m_a)];
-//     }
-//   }
-  
-//   //reflect changes
-//   *A = A_padded;
-//   *B = B_padded;
-//   *C = C_padded;
-//   *m_a = padded_m;
-//   *n_a = padded_n;
-// }
-
-
-// void unPadMatrix(int old_m, int padded_m, float *PaddedC, float* original_C){
-//   if (old_m != padded_m){
-//     for (int n = 0; n < old_m; ++n){
-//       for (int m = 0; m < old_m; ++m){
-//         //need optimization
-//         original_C[m+n*old_m] = PaddedC[m+n*padded_m];
-//       }
-//     }
-//   }
-// }
-
 void printIntel(__m128 var){
   printf("{%f, %f, %f, %f}\n", 
     *((float*)(&var)+0),
@@ -112,9 +45,7 @@ void printIntel(__m128 var){
 }
 
 /* ************************************************************************* */
-/* SGEMM Cases                                                        
-
-              
+/* SGEMM Cases       
           R e g i s t e r   B l o c k i n g 
           
           a1, a2, a3, and a4 refer to matrix A
@@ -131,9 +62,7 @@ void printIntel(__m128 var){
       b 3                                                                                                                                                        
           » » » »   » » » »   » » » »   » » » »                                                                                                                  
       b 4                                                                                                                                                        
-          » » » »   » » » »   » » » »   » » » »                                                                                                                  
-                                                                                                                                                                 
-         
+          » » » »   » » » »   » » » »   » » » »
 */                                                                                                                                               
 /* ************************************************************************* */
 
@@ -141,11 +70,15 @@ void printIntel(__m128 var){
 void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
 
   float* original_C = C;
-  int old_m = m_a;
-
+  bool padded = false;
+  int old_m;
+  int old_n;
   // padMatrix(&m_a, &n_a, &A, &B, &C);
   if (m_a % REG_BLOCKSIZE || n_a % REG_BLOCKSIZE){
 
+    padded = true;
+    old_m = m_a;
+    old_n = n_a;
     int padded_m = ((m_a -1) / REG_BLOCKSIZE +1) * REG_BLOCKSIZE;
     int padded_n = ((n_a -1) / REG_BLOCKSIZE +1) * REG_BLOCKSIZE;
 
@@ -158,7 +91,7 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
 
     for (int n = 0; n < (n_a); n+=1){
       int m;
-      for (m = 0; m < (m_a)/8*8; m+=8){
+      for (m = 0; m < (m_a)/4*4; m+=4){
         //need optimization
         // A_padded[m+0+n*padded_m] = (A)[m+0+n*(m_a)];
         // A_padded[m+1+n*padded_m] = (A)[m+1+n*(m_a)];
@@ -169,7 +102,7 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
         // A_padded[m+6+n*padded_m] = (A)[m+6+n*(m_a)];
         // A_padded[m+7+n*padded_m] = (A)[m+7+n*(m_a)];
         _mm_storeu_ps(A_padded+m+n*padded_m, _mm_loadu_ps(A+m+n*(m_a)));
-        _mm_storeu_ps(A_padded+m+4+n*padded_m, _mm_loadu_ps(A+m+4+n*(m_a)));
+        // _mm_storeu_ps(A_padded+m+4+n*padded_m, _mm_loadu_ps(A+m+4+n*(m_a)));
         // B_padded[m+0+n*padded_m] = (B)[m+0+n*(m_a)];
         // B_padded[m+1+n*padded_m] = (B)[m+1+n*(m_a)];
         // B_padded[m+2+n*padded_m] = (B)[m+2+n*(m_a)];
@@ -179,7 +112,7 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
         // B_padded[m+6+n*padded_m] = (B)[m+6+n*(m_a)];
         // B_padded[m+7+n*padded_m] = (B)[m+7+n*(m_a)];
         _mm_storeu_ps(B_padded+m+n*padded_m, _mm_loadu_ps(B+m+n*(m_a)));
-        _mm_storeu_ps(B_padded+m+4+n*padded_m, _mm_loadu_ps(B+m+4+n*(m_a)));
+        // _mm_storeu_ps(B_padded+m+4+n*padded_m, _mm_loadu_ps(B+m+4+n*(m_a)));
 
       }
       for (; m<m_a; m++){
@@ -189,13 +122,15 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
     }
 
     float *C_padded = (float*)calloc(total(padded_m, padded_m), sizeof(float));
+    // C = (float*)realloc(C, total(padded_m, padded_m)*sizeof(float));
     if (!C_padded) errorAllocation();
-    for (int n = 0; n < m_a; ++n){
-      for (int m = 0; m < m_a; ++m){
-        //need optimization
-        C_padded[m+n*padded_m] = (C)[m+n*(m_a)];
-      }
-    }
+    //This padding is unncessary since C starts out being zero anyways
+    // for (int n = 0; n < m_a; ++n){
+    //   for (int m = 0; m < m_a; ++m){
+    //     //need optimization
+    //     C_padded[m+n*padded_m] = (C)[m+n*(m_a)];
+    //   }
+    // }
     
     //reflect changes
     A = A_padded;
@@ -314,9 +249,18 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
       }
     }
   }
+  if(0){
+    for (int x = 0; x<3; x++){
+      printf("|");
+      for (int y = 0; y<3; y++){
+        printf("%.2f|", C[y*m_a+x]);
+      }
+      printf("\n");
+    }
+  }
   
   // unPadMatrix(old_m, m_a, C, original_C);
-  if (old_m != m_a){
+  if (padded){
     for (int n = 0; n < old_m; ++n){
       for (int m = 0; m < old_m; ++m){
         //need optimization
@@ -334,6 +278,12 @@ void sgemmSpecial(float * A, float * B, float * C) {
   int n_a = 36;
   for (int i = 0; i < m_a; i+=4){
     for (int j = 0; j < m_a; j+=4){
+      
+      float* c1_addr = C + i + m_a*(j+0);
+      float* c2_addr = C + i + m_a*(j+1);
+      float* c3_addr = C + i + m_a*(j+2);
+      float* c4_addr = C + i + m_a*(j+3);
+
       for (int k = 0; k < n_a; k+=4){
         //Obtain placeholders for sums of column c1, c2, c3, c4
         __m128 c1 = _mm_setzero_ps();
@@ -430,10 +380,10 @@ void sgemmSpecial(float * A, float * B, float * C) {
           _mm_mul_ps(a4, _mm_load1_ps((B + j+3 + m_a*(k+3)))));
 
         //Put c's back on shelf
-        _mm_storeu_ps(C + i + m_a*(j+0), _mm_add_ps(c1, _mm_loadu_ps(C + i + m_a*(j+0))));
-        _mm_storeu_ps(C + i + m_a*(j+1), _mm_add_ps(c2, _mm_loadu_ps(C + i + m_a*(j+1))));
-        _mm_storeu_ps(C + i + m_a*(j+2), _mm_add_ps(c3, _mm_loadu_ps(C + i + m_a*(j+2))));
-        _mm_storeu_ps(C + i + m_a*(j+3), _mm_add_ps(c4, _mm_loadu_ps(C + i + m_a*(j+3))));
+        _mm_storeu_ps(c1_addr, _mm_add_ps(c1, _mm_loadu_ps(c1_addr)));
+        _mm_storeu_ps(c2_addr, _mm_add_ps(c2, _mm_loadu_ps(c2_addr)));
+        _mm_storeu_ps(c3_addr, _mm_add_ps(c3, _mm_loadu_ps(c3_addr)));
+        _mm_storeu_ps(c4_addr, _mm_add_ps(c4, _mm_loadu_ps(c4_addr)));
 
       }
     }
