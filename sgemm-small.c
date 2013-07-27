@@ -120,71 +120,84 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
     n_a = padded_n;
   }
 
+  //Pre-declare placeholders for columns of 4x4 C_sub
+  __m128 c1;
+  __m128 c2;
+  __m128 c3;
+  __m128 c4;
 
-  for (int i = 0; i < m_a; i+=4){
+  for (int k = 0; k < n_a; k+=4){
+
+    //pre-calculate num of entries for row/column skipping
+    int m_ak0 = m_a*(k+0);
+    int m_ak1 = m_a*(k+1);
+    int m_ak2 = m_a*(k+2);
+    int m_ak3 = m_a*(k+3);
+    
     for (int j = 0; j < m_a; j+=4){
 
-      //Pre calculates addr's of col's of C
-      float* c1_addr = C + i + m_a*(j+0);
-      float* c2_addr = C + i + m_a*(j+1);
-      float* c3_addr = C + i + m_a*(j+2);
-      float* c4_addr = C + i + m_a*(j+3);
+      //pre-calculate the n-th entry for B and C
+      float* Bj0 = B + j+0;
+      float* Bj1 = B + j+1;
+      float* Bj2 = B + j+2;
+      float* Bj3 = B + j+3;
 
-      for (int k = 0; k < n_a; k+=4){
+      //pre-load only 8 entries of 4x4 B-sub (16 xmm registers limit, other 8 used by others)
+      __m128 b11 = _mm_load1_ps((Bj0 + m_ak0));
+      __m128 b12 = _mm_load1_ps((Bj1 + m_ak0));
+      __m128 b13 = _mm_load1_ps((Bj2 + m_ak0));
+      __m128 b14 = _mm_load1_ps((Bj3 + m_ak0));
+
+      __m128 b21 = _mm_load1_ps((Bj0 + m_ak1));
+      __m128 b22 = _mm_load1_ps((Bj1 + m_ak1));
+      __m128 b23 = _mm_load1_ps((Bj2 + m_ak1));
+      __m128 b24 = _mm_load1_ps((Bj3 + m_ak1));
+
+      for (int i = 0; i < m_a; i+=4){
+
+        float* c1_addr = C + i + m_a*(j+0);
+        float* c2_addr = C + i + m_a*(j+1);
+        float* c3_addr = C + i + m_a*(j+2);
+        float* c4_addr = C + i + m_a*(j+3);
+
         //Obtain placeholders for sums of column c1, c2, c3, c4
-        __m128 c1 = _mm_setzero_ps();
-        __m128 c2 = _mm_setzero_ps();
-        __m128 c3 = _mm_setzero_ps();
-        __m128 c4 = _mm_setzero_ps();
+        c1 = _mm_setzero_ps();
+        c2 = _mm_setzero_ps();
+        c3 = _mm_setzero_ps();
+        c4 = _mm_setzero_ps();
 
         //Obtain grouped single precision of 4 from a1, a2, a3, a4
-        __m128 a1 = _mm_loadu_ps(A + i + m_a*(k+0));
-        __m128 a2 = _mm_loadu_ps(A + i + m_a*(k+1));
-        __m128 a3 = _mm_loadu_ps(A + i + m_a*(k+2));
-        __m128 a4 = _mm_loadu_ps(A + i + m_a*(k+3));
+        __m128 a1 = _mm_loadu_ps(A + i + m_ak0);
+        __m128 a2 = _mm_loadu_ps(A + i + m_ak1);
+        __m128 a3 = _mm_loadu_ps(A + i + m_ak2);
+        __m128 a4 = _mm_loadu_ps(A + i + m_ak3);
 
         //To see how positions of Bxx (entries of B) are calculated, refer to
         //bottom of this file
 
         /*b1x x a1, for formula explanation, refer to bottom of this file*/
-        c1 = _mm_add_ps(c1, 
-          _mm_mul_ps(a1, _mm_load1_ps((B + j+0 + m_a*(k+0)))));
-        c2 = _mm_add_ps(c2, 
-          _mm_mul_ps(a1, _mm_load1_ps((B + j+1 + m_a*(k+0)))));
-        c3 = _mm_add_ps(c3, 
-          _mm_mul_ps(a1, _mm_load1_ps((B + j+2 + m_a*(k+0)))));
-        c4 = _mm_add_ps(c4, 
-          _mm_mul_ps(a1, _mm_load1_ps((B + j+3 + m_a*(k+0)))));
+        c1 = _mm_add_ps(c1, _mm_mul_ps(a1, b11));
+        c2 = _mm_add_ps(c2, _mm_mul_ps(a1, b12));
+        c3 = _mm_add_ps(c3, _mm_mul_ps(a1, b13));
+        c4 = _mm_add_ps(c4, _mm_mul_ps(a1, b14));
 
         /*b2x x a2, for formula explanation, refer to bottom of this file*/
-        c1 = _mm_add_ps(c1, 
-          _mm_mul_ps(a2, _mm_load1_ps((B + j+0 + m_a*(k+1)))));
-        c2 = _mm_add_ps(c2, 
-          _mm_mul_ps(a2, _mm_load1_ps((B + j+1 + m_a*(k+1)))));
-        c3 = _mm_add_ps(c3, 
-          _mm_mul_ps(a2, _mm_load1_ps((B + j+2 + m_a*(k+1)))));
-        c4 = _mm_add_ps(c4, 
-          _mm_mul_ps(a2, _mm_load1_ps((B + j+3 + m_a*(k+1)))));
+        c1 = _mm_add_ps(c1, _mm_mul_ps(a2, b21));
+        c2 = _mm_add_ps(c2, _mm_mul_ps(a2, b22));
+        c3 = _mm_add_ps(c3, _mm_mul_ps(a2, b23));
+        c4 = _mm_add_ps(c4, _mm_mul_ps(a2, b24));
 
         /*b3x x a3, for formula explanation, refer to bottom of this file*/
-        c1 = _mm_add_ps(c1, 
-          _mm_mul_ps(a3, _mm_load1_ps((B + j+0 + m_a*(k+2)))));
-        c2 = _mm_add_ps(c2, 
-          _mm_mul_ps(a3, _mm_load1_ps((B + j+1 + m_a*(k+2)))));
-        c3 = _mm_add_ps(c3, 
-          _mm_mul_ps(a3, _mm_load1_ps((B + j+2 + m_a*(k+2)))));
-        c4 = _mm_add_ps(c4, 
-          _mm_mul_ps(a3, _mm_load1_ps((B + j+3 + m_a*(k+2)))));
+        c1 = _mm_add_ps(c1, _mm_mul_ps(a3, _mm_load1_ps((Bj0 + m_ak2))));
+        c2 = _mm_add_ps(c2, _mm_mul_ps(a3, _mm_load1_ps((Bj1 + m_ak2))));
+        c3 = _mm_add_ps(c3, _mm_mul_ps(a3, _mm_load1_ps((Bj2 + m_ak2))));
+        c4 = _mm_add_ps(c4, _mm_mul_ps(a3, _mm_load1_ps((Bj3 + m_ak2))));
 
         /*b4x x a4, for formula explanation, refer to bottom of this file*/
-        c1 = _mm_add_ps(c1, 
-          _mm_mul_ps(a4, _mm_load1_ps((B + j+0 + m_a*(k+3)))));
-        c2 = _mm_add_ps(c2, 
-          _mm_mul_ps(a4, _mm_load1_ps((B + j+1 + m_a*(k+3)))));
-        c3 = _mm_add_ps(c3, 
-          _mm_mul_ps(a4, _mm_load1_ps((B + j+2 + m_a*(k+3)))));
-        c4 = _mm_add_ps(c4, 
-          _mm_mul_ps(a4, _mm_load1_ps((B + j+3 + m_a*(k+3)))));
+        c1 = _mm_add_ps(c1, _mm_mul_ps(a4, _mm_load1_ps((Bj0 + m_ak3))));
+        c2 = _mm_add_ps(c2, _mm_mul_ps(a4, _mm_load1_ps((Bj1 + m_ak3))));
+        c3 = _mm_add_ps(c3, _mm_mul_ps(a4, _mm_load1_ps((Bj2 + m_ak3))));
+        c4 = _mm_add_ps(c4, _mm_mul_ps(a4, _mm_load1_ps((Bj3 + m_ak3))));
 
         //Put c's back on shelf
         _mm_storeu_ps(c1_addr, _mm_add_ps(c1, _mm_loadu_ps(c1_addr)));
@@ -195,15 +208,15 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
       }
     }
   }
-  if(0){
-    for (int x = 0; x<3; x++){
-      printf("|");
-      for (int y = 0; y<3; y++){
-        printf("%.2f|", C[y*m_a+x]);
-      }
-      printf("\n");
-    }
-  }
+  // if(0){
+  //   for (int x = 0; x<3; x++){
+  //     printf("|");
+  //     for (int y = 0; y<3; y++){
+  //       printf("%.2f|", C[y*m_a+x]);
+  //     }
+  //     printf("\n");
+  //   }
+  // }
   
   // unPadMatrix(old_m, m_a, C, original_C);
   if (padded){
@@ -230,12 +243,13 @@ void sgemmSpecial(float * A, float * B, float * C) {
       float* c3_addr = C + i + m_a*(j+2);
       float* c4_addr = C + i + m_a*(j+3);
 
+      //Obtain placeholders for sums of column c1, c2, c3, c4
+      __m128 c1 = _mm_setzero_ps();
+      __m128 c2 = _mm_setzero_ps();
+      __m128 c3 = _mm_setzero_ps();
+      __m128 c4 = _mm_setzero_ps();
+
       for (int k = 0; k < n_a; k+=4){
-        //Obtain placeholders for sums of column c1, c2, c3, c4
-        __m128 c1 = _mm_setzero_ps();
-        __m128 c2 = _mm_setzero_ps();
-        __m128 c3 = _mm_setzero_ps();
-        __m128 c4 = _mm_setzero_ps();
 
         //Obtain grouped single precision of 4 from a1, a2, a3, a4
         __m128 a1 = _mm_loadu_ps(A + i + m_a*(k+0));
@@ -283,13 +297,12 @@ void sgemmSpecial(float * A, float * B, float * C) {
         c4 = _mm_add_ps(c4, 
           _mm_mul_ps(a4, _mm_load1_ps((B + j+3 + m_a*(k+3)))));
 
-        //Put c's back on shelf
-        _mm_storeu_ps(c1_addr, _mm_add_ps(c1, _mm_loadu_ps(c1_addr)));
-        _mm_storeu_ps(c2_addr, _mm_add_ps(c2, _mm_loadu_ps(c2_addr)));
-        _mm_storeu_ps(c3_addr, _mm_add_ps(c3, _mm_loadu_ps(c3_addr)));
-        _mm_storeu_ps(c4_addr, _mm_add_ps(c4, _mm_loadu_ps(c4_addr)));
-
       }
+      //Put c's back on shelf
+      _mm_storeu_ps(c1_addr, _mm_add_ps(c1, _mm_loadu_ps(c1_addr)));
+      _mm_storeu_ps(c2_addr, _mm_add_ps(c2, _mm_loadu_ps(c2_addr)));
+      _mm_storeu_ps(c3_addr, _mm_add_ps(c3, _mm_loadu_ps(c3_addr)));
+      _mm_storeu_ps(c4_addr, _mm_add_ps(c4, _mm_loadu_ps(c4_addr)));
     }
   }
 }
