@@ -22,12 +22,11 @@
 #define total(width, height) (width * height)
 static int REG_BLOCKSIZE = sizeof(__m128) / sizeof(float);
 
+/* Call me when *malloc fails */
 void error(char * msg) {
   fprintf(stderr, "[Error] %s\n", msg);
   exit(EXIT_FAILURE);
 }
-
-/* Call me when *malloc fails */
 void errorAllocation(void) {
   error("Allocation failure");
 }
@@ -73,7 +72,6 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
   bool padded = false;
   int old_m;
   int old_n;
-  // padMatrix(&m_a, &n_a, &A, &B, &C);
   if (m_a % REG_BLOCKSIZE || n_a % REG_BLOCKSIZE){
 
     padded = true;
@@ -92,29 +90,19 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
     for (int n = 0; n < (n_a); n+=1){
       int m;
       for (m = 0; m < (m_a)/4*4; m+=4){
-        //need optimization
-        // A_padded[m+0+n*padded_m] = (A)[m+0+n*(m_a)];
-        // A_padded[m+1+n*padded_m] = (A)[m+1+n*(m_a)];
-        // A_padded[m+2+n*padded_m] = (A)[m+2+n*(m_a)];
-        // A_padded[m+3+n*padded_m] = (A)[m+3+n*(m_a)];
-        // A_padded[m+4+n*padded_m] = (A)[m+4+n*(m_a)];
-        // A_padded[m+5+n*padded_m] = (A)[m+5+n*(m_a)];
-        // A_padded[m+6+n*padded_m] = (A)[m+6+n*(m_a)];
-        // A_padded[m+7+n*padded_m] = (A)[m+7+n*(m_a)];
-        _mm_storeu_ps(A_padded+m+n*padded_m, _mm_loadu_ps(A+m+n*(m_a)));
-        // _mm_storeu_ps(A_padded+m+4+n*padded_m, _mm_loadu_ps(A+m+4+n*(m_a)));
-        // B_padded[m+0+n*padded_m] = (B)[m+0+n*(m_a)];
-        // B_padded[m+1+n*padded_m] = (B)[m+1+n*(m_a)];
-        // B_padded[m+2+n*padded_m] = (B)[m+2+n*(m_a)];
-        // B_padded[m+3+n*padded_m] = (B)[m+3+n*(m_a)];
-        // B_padded[m+4+n*padded_m] = (B)[m+4+n*(m_a)];
-        // B_padded[m+5+n*padded_m] = (B)[m+5+n*(m_a)];
-        // B_padded[m+6+n*padded_m] = (B)[m+6+n*(m_a)];
-        // B_padded[m+7+n*padded_m] = (B)[m+7+n*(m_a)];
-        _mm_storeu_ps(B_padded+m+n*padded_m, _mm_loadu_ps(B+m+n*(m_a)));
-        // _mm_storeu_ps(B_padded+m+4+n*padded_m, _mm_loadu_ps(B+m+4+n*(m_a)));
+        A_padded[m+0+n*padded_m] = (A)[m+0+n*(m_a)];
+        A_padded[m+1+n*padded_m] = (A)[m+1+n*(m_a)];
+        A_padded[m+2+n*padded_m] = (A)[m+2+n*(m_a)];
+        A_padded[m+3+n*padded_m] = (A)[m+3+n*(m_a)];
+
+        B_padded[m+0+n*padded_m] = (B)[m+0+n*(m_a)];
+        B_padded[m+1+n*padded_m] = (B)[m+1+n*(m_a)];
+        B_padded[m+2+n*padded_m] = (B)[m+2+n*(m_a)];
+        B_padded[m+3+n*padded_m] = (B)[m+3+n*(m_a)];
+        B_padded[m+4+n*padded_m] = (B)[m+4+n*(m_a)];
 
       }
+      //fringe clean-up
       for (; m<m_a; m++){
         A_padded[m+n*padded_m] = (A)[m+n*(m_a)];
         B_padded[m+n*padded_m] = (B)[m+n*(m_a)];
@@ -122,8 +110,6 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
     }
 
     float *C_padded = (float*)calloc(total(padded_m, padded_m), sizeof(float));
-    
-    // C = (float*)realloc(C, total(padded_m, padded_m)*sizeof(float));
     if (!C_padded) errorAllocation();
 
     //reflect changes
@@ -137,6 +123,13 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
 
   for (int i = 0; i < m_a; i+=4){
     for (int j = 0; j < m_a; j+=4){
+
+      //Pre calculates addr's of col's of C
+      float* c1_addr = C + i + m_a*(j+0);
+      float* c2_addr = C + i + m_a*(j+1);
+      float* c3_addr = C + i + m_a*(j+2);
+      float* c4_addr = C + i + m_a*(j+3);
+
       for (int k = 0; k < n_a; k+=4){
         //Obtain placeholders for sums of column c1, c2, c3, c4
         __m128 c1 = _mm_setzero_ps();
@@ -150,36 +143,10 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
         __m128 a3 = _mm_loadu_ps(A + i + m_a*(k+2));
         __m128 a4 = _mm_loadu_ps(A + i + m_a*(k+3));
 
+        //To see how positions of Bxx (entries of B) are calculated, refer to
+        //bottom of this file
 
-
-        //Do not delete this reference
-        // float* b11 = (B + j+0 + m_a*(k+0));
-        // float* b12 = (B + j+1 + m_a*(k+0));
-        // float* b13 = (B + j+2 + m_a*(k+0));
-        // float* b14 = (B + j+3 + m_a*(k+0));
-
-        // float* b21 = (B + j+0 + m_a*(k+1));
-        // float* b22 = (B + j+1 + m_a*(k+1));
-        // float* b23 = (B + j+2 + m_a*(k+1));
-        // float* b24 = (B + j+3 + m_a*(k+1));
-
-        // float* b31 = (B + j+0 + m_a*(k+2));
-        // float* b32 = (B + j+1 + m_a*(k+2));
-        // float* b33 = (B + j+2 + m_a*(k+2));
-        // float* b34 = (B + j+3 + m_a*(k+2));
-
-        // float* b41 = (B + j+0 + m_a*(k+3));
-        // float* b42 = (B + j+1 + m_a*(k+3));
-        // float* b43 = (B + j+2 + m_a*(k+3));
-        // float* b44 = (B + j+3 + m_a*(k+3));
-
-
-        /*b1 x a1*/
-        // c1 += 4xb11 * a1
-        // c2 += 4xb12 * a1
-        // c3 += 4xb13 * a1
-        // c4 += 4xb14 * a1
-
+        /*b1x x a1, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
           _mm_mul_ps(a1, _mm_load1_ps((B + j+0 + m_a*(k+0)))));
         c2 = _mm_add_ps(c2, 
@@ -189,12 +156,7 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
         c4 = _mm_add_ps(c4, 
           _mm_mul_ps(a1, _mm_load1_ps((B + j+3 + m_a*(k+0)))));
 
-        /*b2 x a2*/
-        // c1 += 4xb21 * a2
-        // c2 += 4xb22 * a2
-        // c3 += 4xb23 * a2
-        // c4 += 4xb24 * a2
-
+        /*b2x x a2, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
           _mm_mul_ps(a2, _mm_load1_ps((B + j+0 + m_a*(k+1)))));
         c2 = _mm_add_ps(c2, 
@@ -204,12 +166,7 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
         c4 = _mm_add_ps(c4, 
           _mm_mul_ps(a2, _mm_load1_ps((B + j+3 + m_a*(k+1)))));
 
-        /*b3 x a3*/
-        // c1 += 4xb31 * a3
-        // c2 += 4xb32 * a3
-        // c3 += 4xb33 * a3
-        // c4 += 4xb34 * a3
-
+        /*b3x x a3, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
           _mm_mul_ps(a3, _mm_load1_ps((B + j+0 + m_a*(k+2)))));
         c2 = _mm_add_ps(c2, 
@@ -219,12 +176,7 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
         c4 = _mm_add_ps(c4, 
           _mm_mul_ps(a3, _mm_load1_ps((B + j+3 + m_a*(k+2)))));
 
-        /*b4 x a4*/
-        // c1 += 4xb41 * a4
-        // c2 += 4xb42 * a4
-        // c3 += 4xb43 * a4
-        // c4 += 4xb44 * a4
-
+        /*b4x x a4, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
           _mm_mul_ps(a4, _mm_load1_ps((B + j+0 + m_a*(k+3)))));
         c2 = _mm_add_ps(c2, 
@@ -235,10 +187,10 @@ void sgemmRegular(int m_a, int n_a, float * A, float * B, float * C) {
           _mm_mul_ps(a4, _mm_load1_ps((B + j+3 + m_a*(k+3)))));
 
         //Put c's back on shelf
-        _mm_storeu_ps(C + i + m_a*(j+0), _mm_add_ps(c1, _mm_loadu_ps(C + i + m_a*(j+0))));
-        _mm_storeu_ps(C + i + m_a*(j+1), _mm_add_ps(c2, _mm_loadu_ps(C + i + m_a*(j+1))));
-        _mm_storeu_ps(C + i + m_a*(j+2), _mm_add_ps(c3, _mm_loadu_ps(C + i + m_a*(j+2))));
-        _mm_storeu_ps(C + i + m_a*(j+3), _mm_add_ps(c4, _mm_loadu_ps(C + i + m_a*(j+3))));
+        _mm_storeu_ps(c1_addr, _mm_add_ps(c1, _mm_loadu_ps(c1_addr)));
+        _mm_storeu_ps(c2_addr, _mm_add_ps(c2, _mm_loadu_ps(c2_addr)));
+        _mm_storeu_ps(c3_addr, _mm_add_ps(c3, _mm_loadu_ps(c3_addr)));
+        _mm_storeu_ps(c4_addr, _mm_add_ps(c4, _mm_loadu_ps(c4_addr)));
 
       }
     }
@@ -291,34 +243,7 @@ void sgemmSpecial(float * A, float * B, float * C) {
         __m128 a3 = _mm_loadu_ps(A + i + m_a*(k+2));
         __m128 a4 = _mm_loadu_ps(A + i + m_a*(k+3));
 
-
-        // float* b11 = (B + j+0 + m_a*(k+0));
-        // float* b12 = (B + j+1 + m_a*(k+0));
-        // float* b13 = (B + j+2 + m_a*(k+0));
-        // float* b14 = (B + j+3 + m_a*(k+0));
-
-        // float* b21 = (B + j+0 + m_a*(k+1));
-        // float* b22 = (B + j+1 + m_a*(k+1));
-        // float* b23 = (B + j+2 + m_a*(k+1));
-        // float* b24 = (B + j+3 + m_a*(k+1));
-
-        // float* b31 = (B + j+0 + m_a*(k+2));
-        // float* b32 = (B + j+1 + m_a*(k+2));
-        // float* b33 = (B + j+2 + m_a*(k+2));
-        // float* b34 = (B + j+3 + m_a*(k+2));
-
-        // float* b41 = (B + j+0 + m_a*(k+3));
-        // float* b42 = (B + j+1 + m_a*(k+3));
-        // float* b43 = (B + j+2 + m_a*(k+3));
-        // float* b44 = (B + j+3 + m_a*(k+3));
-
-
-        /*b1 x a1*/
-        // c1 += 4xb11 * a1
-        // c2 += 4xb12 * a1
-        // c3 += 4xb13 * a1
-        // c4 += 4xb14 * a1
-
+        /*b1x x a1, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
           _mm_mul_ps(a1, _mm_load1_ps((B + j+0 + m_a*(k+0)))));
         c2 = _mm_add_ps(c2, 
@@ -328,12 +253,7 @@ void sgemmSpecial(float * A, float * B, float * C) {
         c4 = _mm_add_ps(c4, 
           _mm_mul_ps(a1, _mm_load1_ps((B + j+3 + m_a*(k+0)))));
 
-        /*b2 x a2*/
-        // c1 += 4xb21 * a2
-        // c2 += 4xb22 * a2
-        // c3 += 4xb23 * a2
-        // c4 += 4xb24 * a2
-
+        /*b2x x a2, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
           _mm_mul_ps(a2, _mm_load1_ps((B + j+0 + m_a*(k+1)))));
         c2 = _mm_add_ps(c2, 
@@ -343,12 +263,7 @@ void sgemmSpecial(float * A, float * B, float * C) {
         c4 = _mm_add_ps(c4, 
           _mm_mul_ps(a2, _mm_load1_ps((B + j+3 + m_a*(k+1)))));
 
-        /*b3 x a3*/
-        // c1 += 4xb31 * a3
-        // c2 += 4xb32 * a3
-        // c3 += 4xb33 * a3
-        // c4 += 4xb34 * a3
-
+        /*b3x x a3, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
           _mm_mul_ps(a3, _mm_load1_ps((B + j+0 + m_a*(k+2)))));
         c2 = _mm_add_ps(c2, 
@@ -358,12 +273,7 @@ void sgemmSpecial(float * A, float * B, float * C) {
         c4 = _mm_add_ps(c4, 
           _mm_mul_ps(a3, _mm_load1_ps((B + j+3 + m_a*(k+2)))));
 
-        /*b4 x a4*/
-        // c1 += 4xb41 * a4
-        // c2 += 4xb42 * a4
-        // c3 += 4xb43 * a4
-        // c4 += 4xb44 * a4
-
+        /*b4x x a4, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
           _mm_mul_ps(a4, _mm_load1_ps((B + j+0 + m_a*(k+3)))));
         c2 = _mm_add_ps(c2, 
@@ -389,4 +299,76 @@ void sgemm(int m_a, int n_a, float * A, float * B, float * C) {
     sgemmSpecial(A, B, C)
     : sgemmRegular(m_a, n_a, A, B, C);
 }
+
+
+
+
+/* ************************************************************************* */
+/* Code Bank and References                                                  */
+/* ************************************************************************* */
+
+/*
+        More loop unrolling for padding
+
+        // A_padded[m+4+n*padded_m] = (A)[m+4+n*(m_a)];
+        // A_padded[m+5+n*padded_m] = (A)[m+5+n*(m_a)];
+        // A_padded[m+6+n*padded_m] = (A)[m+6+n*(m_a)];
+        // A_padded[m+7+n*padded_m] = (A)[m+7+n*(m_a)];
+        // _mm_storeu_ps(A_padded+m+n*padded_m, _mm_loadu_ps(A+m+n*(m_a)));
+        // _mm_storeu_ps(A_padded+m+4+n*padded_m, _mm_loadu_ps(A+m+4+n*(m_a)));
+        // B_padded[m+5+n*padded_m] = (B)[m+5+n*(m_a)];
+        // B_padded[m+6+n*padded_m] = (B)[m+6+n*(m_a)];
+        // B_padded[m+7+n*padded_m] = (B)[m+7+n*(m_a)];
+        // _mm_storeu_ps(B_padded+m+n*padded_m, _mm_loadu_ps(B+m+n*(m_a)));
+        // _mm_storeu_ps(B_padded+m+4+n*padded_m, _mm_loadu_ps(B+m+4+n*(m_a)));
+
+        Positions for matrix B
+
+        // float* b11 = (B + j+0 + m_a*(k+0));
+        // float* b12 = (B + j+1 + m_a*(k+0));
+        // float* b13 = (B + j+2 + m_a*(k+0));
+        // float* b14 = (B + j+3 + m_a*(k+0));
+
+        // float* b21 = (B + j+0 + m_a*(k+1));
+        // float* b22 = (B + j+1 + m_a*(k+1));
+        // float* b23 = (B + j+2 + m_a*(k+1));
+        // float* b24 = (B + j+3 + m_a*(k+1));
+
+        // float* b31 = (B + j+0 + m_a*(k+2));
+        // float* b32 = (B + j+1 + m_a*(k+2));
+        // float* b33 = (B + j+2 + m_a*(k+2));
+        // float* b34 = (B + j+3 + m_a*(k+2));
+
+        // float* b41 = (B + j+0 + m_a*(k+3));
+        // float* b42 = (B + j+1 + m_a*(k+3));
+        // float* b43 = (B + j+2 + m_a*(k+3));
+        // float* b44 = (B + j+3 + m_a*(k+3));
+
+        Math formula for matrix multiplication with register blocking
+        
+        for matrix A_sub 4x4 multiply matrix B_sub 4x4, 
+        it is equivalent to each B's entry duplicated into a column vector in R^4
+        and the dot product of that column vector and columns of A
+
+        /*b1 x a1*/
+        // c1 += 4{b11} dot a1
+        // c2 += 4{b12} dot a1
+        // c3 += 4{b13} dot a1
+        // c4 += 4{b14} dot a1
+        /*b2 x a2*/
+        // c1 += 4{b21} dot a2
+        // c2 += 4{b22} dot a2
+        // c3 += 4{b23} dot a2
+        // c4 += 4{b24} dot a2
+        /*b3 x a3*/
+        // c1 += 4{b31} dot a3
+        // c2 += 4{b32} dot a3
+        // c3 += 4{b33} dot a3
+        // c4 += 4{b34} dot a3
+        /*b4 x a4*/
+        // c1 += 4{b41} dot a4
+        // c2 += 4{b42} dot a4
+        // c3 += 4{b43} dot a4
+        // c4 += 4{b44} dot a4
+
 
