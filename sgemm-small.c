@@ -234,9 +234,7 @@ void sgemmRegular(int m, int n, float * A, float * B, float * C) {
 /* ************************************************************************* */
 
 void sgemmSpecial(float * A, float * B, float * C) {
-  //Implementation currently at 11Gflop/s
-  int m = 36;
-  int n_a = 36;
+  //Implementation currently at 12.6Gflop/s
 
   //Pre-declare placeholders for columns of 4x4 C_sub
   __m128 c1;
@@ -244,14 +242,8 @@ void sgemmSpecial(float * A, float * B, float * C) {
   __m128 c3;
   __m128 c4;
   
-  for (int i = 0; i < m; i+=4){
-    for (int j = 0; j < m; j+=4){
-      
-      //pre-calculate the addresses for columns of C
-      float* c1_addr = C + i + m*(j+0);
-      float* c2_addr = C + i + m*(j+1);
-      float* c3_addr = C + i + m*(j+2);
-      float* c4_addr = C + i + m*(j+3);
+  for (int i = 0; i < 36; i+=4){
+    for (int j = 0; j < 36; j+=4){
 
       //Obtain placeholders for sums of columns c1, c2, c3, c4
       c1 = _mm_setzero_ps();
@@ -259,60 +251,60 @@ void sgemmSpecial(float * A, float * B, float * C) {
       c3 = _mm_setzero_ps();
       c4 = _mm_setzero_ps();
 
-      for (int k = 0; k < n_a; k+=4){
+      for (int k = 0; k < 36; k+=4){
 
         //Obtain grouped single precision of 4 from a1, a2, a3, a4
-        __m128 a1 = _mm_loadu_ps(A + i + m*(k+0));
-        __m128 a2 = _mm_loadu_ps(A + i + m*(k+1));
-        __m128 a3 = _mm_loadu_ps(A + i + m*(k+2));
-        __m128 a4 = _mm_loadu_ps(A + i + m*(k+3));
+        __m128 a1 = _mm_loadu_ps(A + i + 36*(k+0));
+        __m128 a2 = _mm_loadu_ps(A + i + 36*(k+1));
+        __m128 a3 = _mm_loadu_ps(A + i + 36*(k+2));
+        __m128 a4 = _mm_loadu_ps(A + i + 36*(k+3));
 
         /*b1x x a1, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
-          _mm_mul_ps(a1, _mm_load1_ps((B + j+0 + m*(k+0)))));
+          _mm_mul_ps(a1, _mm_load1_ps((B + j+0 + 36*(k+0)))));
         c2 = _mm_add_ps(c2, 
-          _mm_mul_ps(a1, _mm_load1_ps((B + j+1 + m*(k+0)))));
+          _mm_mul_ps(a1, _mm_load1_ps((B + j+1 + 36*(k+0)))));
         c3 = _mm_add_ps(c3, 
-          _mm_mul_ps(a1, _mm_load1_ps((B + j+2 + m*(k+0)))));
+          _mm_mul_ps(a1, _mm_load1_ps((B + j+2 + 36*(k+0)))));
         c4 = _mm_add_ps(c4, 
-          _mm_mul_ps(a1, _mm_load1_ps((B + j+3 + m*(k+0)))));
+          _mm_mul_ps(a1, _mm_load1_ps((B + j+3 + 36*(k+0)))));
 
         /*b2x x a2, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
-          _mm_mul_ps(a2, _mm_load1_ps((B + j+0 + m*(k+1)))));
+          _mm_mul_ps(a2, _mm_load1_ps((B + j+0 + 36*(k+1)))));
         c2 = _mm_add_ps(c2, 
-          _mm_mul_ps(a2, _mm_load1_ps((B + j+1 + m*(k+1)))));
+          _mm_mul_ps(a2, _mm_load1_ps((B + j+1 + 36*(k+1)))));
         c3 = _mm_add_ps(c3, 
-          _mm_mul_ps(a2, _mm_load1_ps((B + j+2 + m*(k+1)))));
+          _mm_mul_ps(a2, _mm_load1_ps((B + j+2 + 36*(k+1)))));
         c4 = _mm_add_ps(c4, 
-          _mm_mul_ps(a2, _mm_load1_ps((B + j+3 + m*(k+1)))));
+          _mm_mul_ps(a2, _mm_load1_ps((B + j+3 + 36*(k+1)))));
 
         /*b3x x a3, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
-          _mm_mul_ps(a3, _mm_load1_ps((B + j+0 + m*(k+2)))));
+          _mm_mul_ps(a3, _mm_load1_ps((B + j+0 + 36*(k+2)))));
         c2 = _mm_add_ps(c2, 
-          _mm_mul_ps(a3, _mm_load1_ps((B + j+1 + m*(k+2)))));
+          _mm_mul_ps(a3, _mm_load1_ps((B + j+1 + 36*(k+2)))));
         c3 = _mm_add_ps(c3, 
-          _mm_mul_ps(a3, _mm_load1_ps((B + j+2 + m*(k+2)))));
+          _mm_mul_ps(a3, _mm_load1_ps((B + j+2 + 36*(k+2)))));
         c4 = _mm_add_ps(c4, 
-          _mm_mul_ps(a3, _mm_load1_ps((B + j+3 + m*(k+2)))));
+          _mm_mul_ps(a3, _mm_load1_ps((B + j+3 + 36*(k+2)))));
 
         /*b4x x a4, for formula explanation, refer to bottom of this file*/
         c1 = _mm_add_ps(c1, 
-          _mm_mul_ps(a4, _mm_load1_ps((B + j+0 + m*(k+3)))));
+          _mm_mul_ps(a4, _mm_load1_ps((B + j+0 + 36*(k+3)))));
         c2 = _mm_add_ps(c2, 
-          _mm_mul_ps(a4, _mm_load1_ps((B + j+1 + m*(k+3)))));
+          _mm_mul_ps(a4, _mm_load1_ps((B + j+1 + 36*(k+3)))));
         c3 = _mm_add_ps(c3, 
-          _mm_mul_ps(a4, _mm_load1_ps((B + j+2 + m*(k+3)))));
+          _mm_mul_ps(a4, _mm_load1_ps((B + j+2 + 36*(k+3)))));
         c4 = _mm_add_ps(c4, 
-          _mm_mul_ps(a4, _mm_load1_ps((B + j+3 + m*(k+3)))));
+          _mm_mul_ps(a4, _mm_load1_ps((B + j+3 + 36*(k+3)))));
 
       }
       //Accumulate sums in C
-      _mm_storeu_ps(c1_addr, _mm_add_ps(c1, _mm_loadu_ps(c1_addr)));
-      _mm_storeu_ps(c2_addr, _mm_add_ps(c2, _mm_loadu_ps(c2_addr)));
-      _mm_storeu_ps(c3_addr, _mm_add_ps(c3, _mm_loadu_ps(c3_addr)));
-      _mm_storeu_ps(c4_addr, _mm_add_ps(c4, _mm_loadu_ps(c4_addr)));
+      _mm_storeu_ps(C + i + 36*(j+0), _mm_add_ps(c1, _mm_loadu_ps(C + i + 36*(j+0))));
+      _mm_storeu_ps(C + i + 36*(j+1), _mm_add_ps(c2, _mm_loadu_ps(C + i + 36*(j+1))));
+      _mm_storeu_ps(C + i + 36*(j+2), _mm_add_ps(c3, _mm_loadu_ps(C + i + 36*(j+2))));
+      _mm_storeu_ps(C + i + 36*(j+3), _mm_add_ps(c4, _mm_loadu_ps(C + i + 36*(j+3))));
     }
   }
 }
