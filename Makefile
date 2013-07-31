@@ -10,7 +10,7 @@ endif
 
 # running on 200 SD machines
 ifeq ($(UNAME),Darwin)
-CC = gcc -std=gnu99 -g
+CC = gcc -std=gnu99
 GOTO = $(HOME)/bin/GotoBLAS2
 GOTOLIB = $(GOTO)/libgoto2_nehalemp-r1.13.a
 endif
@@ -19,7 +19,7 @@ INCLUDES = -I$(GOTO)
 OMP = -fopenmp
 LIBS = -lpthread  
 # a pretty good flag selection for this machine...
-CFLAGS = -msse4 -fopenmp -O3 -pipe -fno-omit-frame-pointer -g
+CFLAGS = -msse4 -fopenmp -O3 -pipe -fno-omit-frame-pointer
 
 all:	bench-naive bench-small bench-openmp
 
@@ -33,8 +33,12 @@ bench-small: benchmark.o sgemm-small.o
 # your implementation for part 2
 bench-openmp: benchmark.o sgemm-openmp.o
 	$(CC) -o $@ $(LIBS) $(OMP) benchmark.o sgemm-openmp.o $(GOTOLIB)
+
+bench-test: tester.o sgemm-openmp.o
+	$(CC) -o $@ $(LIBS) $(OMP) tester.o sgemm-openmp.o $(GOTOLIB)
+
 %.o: %.c
 	$(CC) -c $(CFLAGS) $(INCLUDES) $<
 
 clean:
-	rm -f *~ bench-naive bench-small bench-openmp *.o
+	rm -f *~ bench-naive bench-small bench-openmp bench-test *.o 
