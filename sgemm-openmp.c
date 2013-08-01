@@ -12,8 +12,8 @@
 static int xmm_size = 4;
 static int cache_size = 8192; //32KiB / 4 Bytes
 static int cache_size_one_third = 2048; 
-// static int dimMax = 64; // sqrt(8182 spfpn / 3 matrices) ~ nearest mul of 4 
-static int dimMax = 52;
+static int dimMax = 64; // sqrt(8182 spfpn / 2 matrices) ~ nearest mul of 4 
+// static int dimMax = 52; // sqrt(8182 spfpn / 3 matrices) ~ nearest mul of 4 
 static int block_size = 16;
 
 /* Call me when *malloc fails */
@@ -41,7 +41,7 @@ void sgemm(int m, int n, float * A, float * B, float * C) {
   int old_n;
 
   //Pad the matrix with zeros if necessary
-  if (m % xmm_size || n % xmm_size){
+  if (m % dimMax || n % xmm_size){
 
     padded = true;
     old_m = m;
@@ -92,33 +92,66 @@ loop ordering by k-j-i or k-i-j, K outermost
 false sharing prevention: parallelize 
 */
 
+  __m128 c1;
+  __m128 c2;
+  __m128 c3;
+  __m128 c4;
+  __m128 a1;
+  __m128 a2;
+  __m128 a3;
+  __m128 a4;
+  int minK;
+  int minI;
+  int minJ;
+
+  // omp_set_dynamic(1);
   // omp_set_num_threads(m/dimMax);
-  // #pragma omp parallel
+  // printf("Padded_m is: %d\n", m);
+  // #pragma omp parallel private(c1, c2, c3, c4)
+  #pragma omp parallel
   {
+    // printf("Threads: %d\n", omp_get_num_threads());
+  // omp_set_num_threads(m/dimMax);
+    // #pragma omp for
+    // #pragma omp for private(c1, c2, c3, c4, minK, minI, minJ, a1, a2, a3, a4)
   for (int C_K = 0; C_K < n; C_K+=dimMax){
+    
     // int C_I = omp_get_thread_num()*dimMax;
     // int limit = (C_I + dimMax < m) ? C_I+dimMax : m;
+    // int limit = (C_I + dimMax);
+
+    // for (; C_I < limit; C_I+=dimMax){
+    // #pragma omp parallel
+    {
+    // #pragma omp for private(c1, c2, c3, c4, minK, minI, minJ, a1, a2, a3, a4)
     for (int C_I = 0; C_I < m; C_I+=dimMax){
+
+      // int C_J = omp_get_thread_num()*dimMax;
+      // int limit = (C_J + dimMax < m) ? C_J+dimMax : m;
+
+      // for (; C_J < limit; C_J+=dimMax){
+      #pragma omp for private(c1, c2, c3, c4, minK, minI, minJ, a1, a2, a3, a4)
       for (int C_J = 0; C_J < m; C_J+=dimMax){
 
-        int minK = (C_K+dimMax < n) ? (C_K+dimMax) : n;
-        int minI = (C_I+dimMax < m) ? (C_I+dimMax) : m;
-        int minJ = (C_J+dimMax < m) ? (C_J+dimMax) : m;
+        minK = (C_K+dimMax < n) ? (C_K+dimMax) : n;
+        minI = (C_I+dimMax < m) ? (C_I+dimMax) : m;
+        minJ = (C_J+dimMax < m) ? (C_J+dimMax) : m;
 
+        // #pragma omp for private(c1, c2, c3, c4, a1, a2, a3, a4)
         for (int j = C_J; j < minJ; j+=4){
           for (int i = C_I; i < minI; i+=4){
             //Obtain placeholders for summation
-            __m128 c1 = _mm_setzero_ps();
-            __m128 c2 = _mm_setzero_ps();
-            __m128 c3 = _mm_setzero_ps();
-            __m128 c4 = _mm_setzero_ps();
+            c1 = _mm_setzero_ps();
+            c2 = _mm_setzero_ps();
+            c3 = _mm_setzero_ps();
+            c4 = _mm_setzero_ps();
 
             for (int k = C_K; k < minK; k+=4){
               //Obtain grouped single precision of 4 from columns a1, a2, a3, a4
-              __m128 a1 = _mm_loadu_ps(A + i + m*(k+0));
-              __m128 a2 = _mm_loadu_ps(A + i + m*(k+1));
-              __m128 a3 = _mm_loadu_ps(A + i + m*(k+2));
-              __m128 a4 = _mm_loadu_ps(A + i + m*(k+3));
+              a1 = _mm_loadu_ps(A + i + m*(k+0));
+              a2 = _mm_loadu_ps(A + i + m*(k+1));
+              a3 = _mm_loadu_ps(A + i + m*(k+2));
+              a4 = _mm_loadu_ps(A + i + m*(k+3));
 
               //To see the full formula on how positions of entries of B are calculated, refer to
               //bottom of this file
@@ -158,6 +191,7 @@ false sharing prevention: parallelize
           }
         }
       }
+    }
     }
   }
   }
