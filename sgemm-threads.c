@@ -16,6 +16,8 @@ static int dimMax = 64; // sqrt(8182 spfpn / 2 matrices) ~ nearest mul of 4
 // static int dimMax = 52; // sqrt(8182 spfpn / 3 matrices) ~ nearest mul of 4 
 static int block_size = 16;
 
+static pthread_mutex_t mutexsum;
+
 /* Call me when *malloc fails */
 void error(char * msg) {
   fprintf(stderr, "[Error] %s\n", msg);
@@ -119,7 +121,9 @@ void * threaded_sgemm(void * vp) {
 	    }
 	      
 	    //Accumulate sum in C
-	    // todo: critical?
+
+	    pthread_mutex_lock (&mutexsum);
+
 	    _mm_storeu_ps(p->C + i + p->m * (j + 0), 
 			  _mm_add_ps(c1, _mm_loadu_ps(p->C + i + p->m * (j + 0))));
 	    _mm_storeu_ps(p->C + i + p->m * (j + 1), 
@@ -128,6 +132,9 @@ void * threaded_sgemm(void * vp) {
 			  _mm_add_ps(c3, _mm_loadu_ps(p->C + i + p->m * (j + 2))));
 	    _mm_storeu_ps(p->C + i + p->m * (j + 3), 
 			  _mm_add_ps(c4, _mm_loadu_ps(p->C + i + p->m * (j + 3))));
+
+	    pthread_mutex_unlock (&mutexsum);
+
 	  }
 	}
       }
@@ -178,6 +185,8 @@ void sgemm(int m, int n, float * A, float * B, float * C) {
     n = padded_n;
   }
 
+  pthread_mutex_init(&mutexsum, NULL);
+
   // thread the main execution
   pthread_t t[PTHREAD_THREADS_MAX + 1];
   threadParam p; // contain all the shared variables
@@ -199,6 +208,8 @@ void sgemm(int m, int n, float * A, float * B, float * C) {
     pthread_join(t[thread_num], &n);
   }
     
+  pthread_mutex_destroy(&mutexsum);
+
   //Un-pad the matrix by transferring useful data back to original C's memory location
   if (padded){
     for (int n_i = 0; n_i < old_m; ++n_i){
